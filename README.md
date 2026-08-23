@@ -1,5 +1,3 @@
-<img width="865" height="718" alt="image" src="https://github.com/user-attachments/assets/f644d5d9-d460-4cfd-bb2f-1c37dff3bc7b" /># AO3 History++
-
 A reading tracker for Archive of Our Own that remembers what you read, how long you spent on it, and syncs it all between your devices — encrypted.
 
 AO3's History tab can take time to update, and it doesn't tell you much about your habits. AO3 History++ tracks your reading **near-instantly**, works across your phone and computer, and adds a full statistics dashboard — while keeping all data local to your devices.
