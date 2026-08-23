@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 History++
 // @namespace    ao3-history-plus-plus
-// @version      0.3.4
+// @version      0.3.5
 // @description  Local reading history + cross-device sync for AO3
 // @match https://archiveofourown.org/works/*
 // @match https://archiveofourown.org/users/*/readings*
@@ -195,7 +195,6 @@ const AO3Parser = (() => {
     return Array.from(dd.querySelectorAll('a.tag')).map((a) => a.textContent.trim()).filter(Boolean);
   }
 
-  // Series breadcrumb on work pages: "Part 3 of <a href="/series/ID">Name</a>".
   function getSeriesInfo() {
     const dd =
       document.querySelector('dl.work.meta dd.series') ||
@@ -2061,6 +2060,19 @@ const AO3HistoryUI = (() => {
       .ao3hpp-panel-section:hover .ao3hpp-drag-handle { opacity: 1 !important; }
       .ao3hpp-panel-section { margin: 0 0 1.5em; }
 
+      /* AO3's greeting dropdowns ("Hi, ...") must stack ABOVE the
+         sticky mini-nav. Raising the menu itself is unreliable
+         (z-index is ignored on non-positioned elements, and header
+         ancestors may form their own stacking context) — so raise
+         the dropdown's positioned ancestor, li.dropdown, instead.
+         Harmless while closed: a positioned element with no overlap
+         renders identically. */
+      #greeting li.dropdown,
+      #header li.dropdown {
+        position: relative;
+        z-index: 9998;
+      }
+
       /* ---- MOBILE (<640px): one responsive layout ---- */
       @media (max-width: 640px) {
         .ao3hpp-continue-card {
@@ -2963,9 +2975,6 @@ const AO3HistoryUI = (() => {
 
   // ============================================================
   // STATISTICS PAGE
-  //
-  // Engagement blocks covenant: FACTS ONLY. No notifications, no
-  // guilt copy, no urgency styling.
   // ============================================================
 
   const STATS_REFRESH_MS = 60_000;
@@ -4371,7 +4380,7 @@ const AO3HistoryUI = (() => {
   }
 
   // ============================================================
-  // STATS PAGE PREFS — visibility + ordering + PRESETS (0.3.4),
+  // STATS PAGE PREFS — visibility + ordering + PRESETS,
   // synced separately via a small plain JSON file.
   // ============================================================
 
@@ -4632,6 +4641,8 @@ const AO3HistoryUI = (() => {
     const hiddenSet = new Set(prefs.hidden);
     const newOrder = [...domOrder];
 
+    // Re-slot hidden sections beside the visible neighbour they used
+    // to follow — re-enabling one drops it back into context.
     for (let idx = 0; idx < prefs.order.length; idx++) {
       const id = prefs.order[idx];
       if (!hiddenSet.has(id)) continue;
@@ -4668,7 +4679,7 @@ const AO3HistoryUI = (() => {
     b.textContent = label;
     b.title = value === 'custom'
       ? 'Your layout is customized (hand-ticked sections or reordered panels)'
-      : `Show only the essentials`;
+      : 'Show only the essentials';
     b.style.cssText = `border:1px solid var(--hpp-accent);border-radius:999px;padding:.2em .9em;font-size:.85em;font-weight:600;cursor:pointer;background:${current === label ? 'var(--hpp-accent)' : 'var(--hpp-chip)'};color:${current === label ? '#fff' : 'var(--hpp-accent)'};`;
     if (value !== 'custom') b.addEventListener('click', onClick);
     else b.style.cursor = 'default';
@@ -4828,7 +4839,10 @@ const AO3HistoryUI = (() => {
 
   function buildMiniNav() {
     const nav = document.createElement('div');
-    nav.style.cssText = 'position:sticky;top:0;z-index:50;display:flex;gap:.3em;flex-wrap:wrap;align-items:center;padding:.4em .2em;margin:0 0 1em;background:var(--hpp-panel,#fafafa);border-bottom:1px solid var(--hpp-border,#ddd);';
+    // z-index kept LOW (1): the bar only needs to sit above page
+    // content. AO3's own header dropdowns ("Hi, ...") must be able to
+    // paint above it — a high z-index here buried them.
+    nav.style.cssText = 'position:sticky;top:0;z-index:1;display:flex;gap:.3em;flex-wrap:wrap;align-items:center;padding:.4em .2em;margin:0 0 1em;background:var(--hpp-panel,#fafafa);border-bottom:1px solid var(--hpp-border,#ddd);';
     nav.className = 'ao3hpp-stats-mininav';
     return nav;
   }
@@ -4991,6 +5005,8 @@ const AO3HistoryUI = (() => {
         seriesRecs.length, seriesRecs.reduce((s, x) => s + (x.works?.length || 0), 0),
       ]);
 
+      // Prefs participate in the change gate: a layout edit must
+      // rebuild even when the numbers didn't move.
       const prefsNow = loadPrefsLocal();
       const prefsSig = JSON.stringify([prefsNow.order, prefsNow.hidden]);
 
@@ -5015,34 +5031,28 @@ const AO3HistoryUI = (() => {
 
     if (model.readings.length === 0 && model.allCandidates.length === 0) {
       if (skel) skel.remove();
+      // Empty account — but settings must NEVER be locked behind
+      // having read something: this panel is the only route to sync
+      // setup, export/import, and the self-check on a fresh device.
+      // Render a real (minimal) page: nav + info card + Your data.
       mount.innerHTML = '';
+      mount.appendChild(buildMiniNav());
+      populateMiniNav(mount);
 
-      const cfg = statsSyncBridge ? statsSyncBridge.getConfig() : null;
+      const info = document.createElement('div');
+      info.className = 'ao3hpp-panel';
+      info.style.cssText = 'border:1px solid var(--hpp-border,#ddd);border-left:3px solid var(--hpp-accent,#900);background:var(--hpp-panel,#fafafa);border-radius:2px;padding:.8em 1em;margin:0 0 1.5em;';
+      info.innerHTML = `
+        <p style="margin:0;color:var(--hpp-muted,#777);">
+          📊 <strong>Nothing recorded yet.</strong> Open a work and read a little — your lifetime stats will appear here.
+        </p>`;
+      mount.appendChild(info);
 
-      if (!cfg && openSetup) {
-        // Unconfigured device landing on Stats: the honest empty-state
-        // is "you haven't connected yet", not "you haven't read".
-        mount.insertAdjacentHTML('beforeend', `
-          <div style="border:1px solid var(--hpp-border,#ddd);border-left:3px solid var(--hpp-accent,#900);background:var(--hpp-panel,#fafafa);border-radius:2px;padding:1em;">
-            <p style="margin:0 0 .5em;color:var(--hpp-text);">
-              ☁️ <strong>Connect sync to see your library here.</strong><br>
-              <span style="color:var(--hpp-muted,#777);font-size:.92em;">Tracking already works locally on this device — connecting mirrors your history from your other devices.</span>
-            </p>
-          </div>`);
-        const connectBtn = document.createElement('button');
-        connectBtn.type = 'button';
-        connectBtn.textContent = '☁️ Connect sync';
-        connectBtn.style.cssText = 'margin-top:.6em;border:1px solid var(--hpp-accent,#900);background:var(--hpp-accent,#900);color:#fff;border-radius:4px;padding:.45em 1.2em;font-weight:600;cursor:pointer;';
-        connectBtn.addEventListener('click', () => { if (openSetup) openSetup(); });
-        mount.lastElementChild.appendChild(connectBtn);
-      } else {
-        mount.insertAdjacentHTML('beforeend', `
-          <div style="border:1px solid var(--hpp-border,#ddd);border-left:3px solid var(--hpp-accent,#900);background:var(--hpp-panel,#fafafa);border-radius:2px;padding:.8em 1em;">
-            <p style="margin:0;color:var(--hpp-muted,#777);">
-              📊 <strong>Nothing recorded yet.</strong> Open a work and read a little — your lifetime stats will appear here.
-            </p>
-          </div>`);
-      }
+      const dataSection = buildSectionNode(
+        SECTION_DEFS.find((d) => d.id === 'data'),
+        model
+      );
+      mount.appendChild(dataSection);
 
       statsRenderCount++;
       return;
@@ -5254,6 +5264,7 @@ const AO3HistoryUI = (() => {
 
   const MAX_COMMIT_SPAN_MS = 90_000;
 
+  // Series membership refresh cadence (per series).
   const SERIES_REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
   const ENCRYPTION_KEY_STORAGE = 'ao3_encryption_key';
@@ -5332,11 +5343,6 @@ const AO3HistoryUI = (() => {
 
   let syncInFlight = false;
 
-  /**
-   * onResult (optional) fires exactly once with the sync outcome —
-   * used by the setup dialog for concrete success/failure feedback
-   * (bad token vs wrong repo vs key mismatch).
-   */
   async function triggerSync(reason, onSynced, onResult) {
     if (syncInFlight) {
       if (onResult) onResult({ success: false, reason: 'busy' });
@@ -5501,16 +5507,7 @@ const AO3HistoryUI = (() => {
   }
 
   // ==============================================================
-  // SETUP DIALOG (0.3.4)
-  //
-  // One persistent overlay replaces ALL window.prompt() flows:
-  //   • survives app-switching (nothing modal)
-  //   • every field persists the moment it validates
-  //   • key can be generated in-place; token has a step-by-step
-  //     guide with a one-click pre-filled GitHub link (classic
-  //     token, `repo` scope)
-  //   • Save runs a REAL sync and reports the specific outcome
-  //     (token rejected / repo not found / key mismatch / success)
+  // SETUP DIALOG
   // ==============================================================
 
   function fieldRow(labelText, inputEl, helpHtml) {
@@ -5631,10 +5628,10 @@ const AO3HistoryUI = (() => {
     });
     card.appendChild(keyRow);
 
-    // ---- GitHub token ----
+    // ---- GitHub token (fine-grained instructions) ----
     const tokHolder = maskedInput('password');
     const tokInput = tokHolder._input;
-    tokInput.placeholder = 'ghp_…';
+    tokInput.placeholder = 'github_pat_…';
     tokInput.value = GM_getValue(GITHUB_TOKEN_STORAGE, '');
 
     const tokRow = fieldRow(
@@ -5756,7 +5753,7 @@ const AO3HistoryUI = (() => {
 
       triggerSync(
         'setup',
-        () => {}, // success re-render handled via onResult below
+        () => {},
         (result) => {
           saveBtn.disabled = false;
 
@@ -5777,10 +5774,10 @@ const AO3HistoryUI = (() => {
               break;
             case 'get-failed':
             case 'retry-get-failed':
-              statusEl.textContent = `❌ GitHub rejected the request (HTTP ${result.status || '?'}). If 401/403: token wrong or lacks the “repo” scope.`;
+              statusEl.textContent = `❌ GitHub rejected the request (HTTP ${result.status || '?'}). If 401/403: token wrong or lacks the “Contents: read/write” permission.`;
               break;
             case 'put-failed':
-              statusEl.textContent = `❌ Could not write to the repo (HTTP ${result.status || '?'}). Check the token has “repo” scope and the repo exists.`;
+              statusEl.textContent = `❌ Could not write to the repo (HTTP ${result.status || '?'}). Check the token's “Contents” permission and that the repo exists.`;
               break;
             case 'invalid-encryption-key':
               statusEl.textContent = '❌ Encryption key is malformed.';
@@ -5821,17 +5818,14 @@ const AO3HistoryUI = (() => {
       AO3HistoryUI.setSetupBridge((onConfigured) => {
         openSetupDialog(() => {
           // Post-connect: pull the library down immediately and
-          // refresh whichever view is mounted.
+          // refresh the mounted view.
           triggerSync('post-setup', () => {
-            if (AO3HistoryUI.runSelfCheck) { /* noop guard */ }
+            if (/\/users\//.test(window.location.pathname)) {
+              triggerSync('post-setup-refresh', () => {
+                window.location.reload();
+              });
+            }
           });
-          // The page-open hook in enhanceHistoryPage handles the
-          // re-render on the NEXT navigation; force one now:
-          if (/\/users\//.test(window.location.pathname)) {
-            triggerSync('post-setup-refresh', () => {
-              window.location.reload();
-            });
-          }
         });
       });
 
@@ -5916,9 +5910,8 @@ const AO3HistoryUI = (() => {
     const LOCAL_COMMIT_INTERVAL_MS = 10_000;
     const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
-    // Kill-switch for position restore (0.3.4): if it ever glitches
-    // on some device/layout, the user can turn it off from 💾 Your
-    // data instead of uninstalling. Local per-device setting.
+    // Kill-switch for position restore: if it ever glitches on some
+    // device/layout, turn it off from 💾 Your data. Local per-device.
     const AUTO_RESTORE_ENABLED =
       GM_getValue('ao3hpp_auto_restore', '1') === '1';
 
