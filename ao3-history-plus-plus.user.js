@@ -5642,10 +5642,11 @@ const AO3HistoryUI = (() => {
       tokHolder,
       `<details style="margin:.2em 0;"><summary style="cursor:pointer;color:#990000;">How to get a token (one minute)</summary>
         <ol style="margin:.4em 0 0;padding-left:1.2em;">
-          <li>Open <a href="https://github.com/settings/tokens/new?scopes=repo&description=AO3%20History%2B%2B" target="_blank" rel="noopener noreferrer">github.com/settings/tokens/new</a> (link pre-selects the right scope)</li>
-          <li>Tick <strong>repo</strong> — that's the only scope needed</li>
-          <li>Click <strong>Generate token</strong> at the bottom</li>
-          <li>Copy it — looks like <code>ghp_</code> + 36 random characters</li>
+          <li>Create a <strong>private</strong> repo for sync (github.com/new) if you haven't</li>
+          <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">github.com/settings/personal-access-tokens/new</a> (fine-grained token)</li>
+          <li>Repository access → <strong>Only select repositories</strong> → pick your sync repo</li>
+          <li>Permissions → <strong>Contents → Read and write</strong> <span style="color:#666;">(Metadata: read-only auto-adds itself — normal)</span></li>
+          <li>Generate & copy — looks like <code>github_pat_…</code></li>
         </ol>
         Paste it below. It stays on this device and is never uploaded anywhere except GitHub's own API.</details>`
     );
