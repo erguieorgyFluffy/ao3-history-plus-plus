@@ -1,4 +1,4 @@
-# AO3 History++
+<img width="865" height="718" alt="image" src="https://github.com/user-attachments/assets/f644d5d9-d460-4cfd-bb2f-1c37dff3bc7b" /># AO3 History++
 
 A reading tracker for Archive of Our Own that remembers what you read, how long you spent on it, and syncs it all between your devices — encrypted.
 
@@ -37,7 +37,18 @@ AO3's History tab can take time to update, and it doesn't tell you much about yo
 2. Open [`ao3-history-plus-plus.user.js`](./ao3-history-plus-plus.user.js) → **Raw** → Tampermonkey offers to install
 3. Log in to AO3 and open any work — tracking starts immediately
 
-*Optional sync:* create a **private** GitHub repo + a classic token (`repo` scope only) — the in-app setup dialog walks you through it, with a one-click pre-filled token page. Skip it and everything still works locally.
+*Optional sync:* create a **private** GitHub repo, then a **fine-grained token** limited to it:
+
+1. Create the private repo (e.g. `my-ao3-sync`) at github.com/new
+2. Open [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
+3. Repository access → *Only select repositories* → pick your sync repo
+4. Permissions → Repository permissions → **Contents → Read and write**
+   *(Metadata: read-only auto-adds itself — normal)*
+5. Generate, copy (`github_pat_…`), paste into the script's **⚙ Sync settings**
+   <img width="865" height="718" alt="image" src="https://github.com/user-attachments/assets/ba14f07f-104c-4566-a098-2eb437133d19" />
+
+
+Skip sync entirely and everything still works locally on that device.
 
 > ⚠️ **Save your encryption key** in a password manager when setup generates/pastes it. It lives only on your devices; losing it means losing your synced history.
 
